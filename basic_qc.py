@@ -68,16 +68,11 @@ sunrise_time_series = pd.Series(map(lambda date: sp.sunrise_time(date, lat=latit
 cuts = pd.Series(map(lambda aa, bb, cc, dd: cut(aa, bb, cc, dd), zenith_angle_series_deg, c_i_series, epsilon_series,
                      delta_series))
 correction_series = pd.Series(map(lambda cut_input: lebaron(cut_input), cuts))
-IRDIF_corrected = file_df.IRDIF * correction_series
-
-file_df["zenith_angle"] = zenith_angle_series_deg
-file_df["sunrise_time"] = sunrise_time_series
-file_df["epsilon"] = epsilon_series
-
-ghi = file_df.loc[:, ["fecha", "IRGLO", "solartime"]]
-dhi = file_df.loc[:, ["fecha", "IRDIF", "solartime"]]
+dif_corrected = file_df.IRDIF * correction_series
 
 # Límites físicos y extremadamente raros
+ghi = file_df.loc[:, ["fecha", "IRGLO", "solartime"]]
+dhi = file_df.loc[:, ["fecha", "IRDIF", "solartime"]]
 factor_series = pd.Series(map(lambda gon_value, theta_z_value: gon_factor(gon_value, theta_z_value), gon_series,
                               zenith_angle_series_rad))
 ghi["upper_physical_limit"] = 1.5 * factor_series + 100
@@ -88,23 +83,6 @@ physical_lower_limit = -4
 extreme_lower_limit = -2
 ghi.index = ghi.fecha
 dhi.index = dhi.fecha
-
-# Límites de comparación
-
-
-# # Ploteo GHI
-# plt.plot(ghi.IRGLO, "k")
-# plt.plot(ghi.upper_extreme_limit, "g-")
-# plt.plot(ghi.upper_physical_limit, "r-")
-# plt.legend(["GHI medida", "Límite extremo", "Límite físico"])
-# plt.show()
-
-# # Ploteo DHI
-# plt.plot(dhi.IRDIF, "c")
-# plt.plot(dhi.upper_extreme_limit, "g-")
-# plt.plot(dhi.upper_physical_limit, "r-")
-# plt.legend(["DHI medida", "Límite extremo", "Límite físico"])
-# plt.show()
 
 # Fin del programa: se ejecuta parte final para conteo de corrida
 toc = datetime.now()
