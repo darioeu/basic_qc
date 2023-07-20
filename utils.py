@@ -717,5 +717,3 @@ def lebaron(cut_input):
             elif j == 4:
                 correction = 1.142
     return correction
-
-
