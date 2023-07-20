@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import solarpy as sp
+from lebaron import lebaron
 
 '''
 Script para control de calidad (Quality Control) básico de datos solares.
@@ -37,7 +38,7 @@ def delta(dif_hu, theta_z_value, gon_value):
     return delta_value
 
 
-def c_i_factor(date):
+def c_i_original(date):
     phi = np.deg2rad(latitud)
     t_0 = sp.sunset_hour_angle(date, latitud)
     italic_delta = sp.declination(date)
@@ -46,8 +47,51 @@ def c_i_factor(date):
     return c_i_value
 
 
-def lebaron():
-    pass
+def cut(zenith_angle_input, geometric_input, epsilon_input, delta_input):
+    if 0 <= zenith_angle_input <= 35:
+        zenith_cut = 1
+    elif 35 < zenith_angle_input <= 50:
+        zenith_cut = 2
+    elif 50 < zenith_angle_input <= 60:
+        zenith_cut = 3
+    elif 60 < zenith_angle_input <= 90:
+        zenith_cut = 4
+    else:
+        zenith_cut = np.nan
+
+    if 1 <= geometric_input <= 1.068:
+        geometric_cut = 1
+    elif 1.068 <= geometric_input <= 1.1:
+        geometric_cut = 2
+    elif 1.1 <= geometric_input <= 1.132:
+        geometric_cut = 3
+    elif 1.132 < geometric_input:
+        geometric_cut = 4
+    else:
+        geometric_cut = np.nan
+
+    if 0 <= epsilon_input <= 1.253:
+        epsilon_cut = 1
+    elif 1.253 <= epsilon_input <= 2.134:
+        epsilon_cut = 2
+    elif 2.134 <= epsilon_input <= 5.980:
+        epsilon_cut = 3
+    elif 5.980 < epsilon_input:
+        epsilon_cut = 4
+    else:
+        epsilon_cut = np.nan
+
+    if 0 <= delta_input <= 0.120:
+        delta_cut = 1
+    elif 0.120 <= delta_input <= 0.2:
+        delta_cut = 2
+    elif 0.2 <= delta_input <= 0.3:
+        delta_cut = 3
+    elif 0.3 < delta_input:
+        delta_cut = 4
+    else:
+        delta_cut = np.nan
+    return zenith_cut, geometric_cut, epsilon_cut, delta_cut
 
 
 def standard2solar_time_modified(date, lng, lng_std):
@@ -98,53 +142,67 @@ file_df = pd.read_csv(file_path, sep=";")
 file_df['fecha'] = pd.to_datetime(file_df['fecha'], format="%d/%m/%Y %H:%M")
 file_df["solartime"] = [standard2solar_time_modified(date, lng=abs(longitud), lng_std=45) for date in file_df.fecha]
 file_df.sort_values(by=["fecha"], inplace=True)
-file_df.reset_index()
-# plt.plot(file_df.sunrise_time); plt.show()
+file_df.reset_index(inplace=True)
 
 # Chequeo de la integridad de los timestamp
-complete_timestamps = set(pd.date_range(start=f"{year}-01-01 00:00", end=f"{year}-12-31 23:59", freq="min"))
-file_timestamps = set(file_df.fecha)
-missing_timestamps = complete_timestamps.difference(file_timestamps)
-print(f"Faltan {len(missing_timestamps)} de {len(complete_timestamps)} timestamps")
-missing_df = pd.DataFrame(
-    {"fecha": list(missing_timestamps), "ILGLO": np.nan, "IRGLO": np.nan, "ILDIF": np.nan, "IRDIF": np.nan},
-    index=list(missing_timestamps))
-full_df = pd.concat([file_df, missing_df]).sort_values(by=["fecha"])
-full_df.reset_index()
-# full_df.index = range(len(file_df) + len(missing_timestamps))
+# complete_timestamps = set(pd.date_range(start=f"{year}-01-01 00:00", end=f"{year}-12-31 23:59", freq="min"))
+# file_timestamps = set(file_df.fecha)
+# missing_timestamps = complete_timestamps.difference(file_timestamps)
+# print(f"Faltan {len(missing_timestamps)} de {len(complete_timestamps)} timestamps")
+# missing_df = pd.DataFrame({"fecha": list(missing_timestamps), "ILGLO": np.nan, "IRGLO": np.nan, "ILDIF": np.nan,
+#                            "IRDIF": np.nan}, index=list(missing_timestamps))
+# full_df = pd.concat([file_df, missing_df]).sort_values(by=["fecha"])
+# full_df.reset_index()
 
 # Cálculo LeBaron
-theta_z = file_df.solartime.apply(lambda x: sp.theta_z(x, lat=latitud))
-# gon = [sp.gon(date) for date in file_df.solartime]  # Io: Irradiancia extraterrestre
-gon = file_df.solartime.apply(sp.gon)
-# dni = [dir_nu(irglo, irdif, theta_z_value) for irglo, irdif, theta_z_value in
-#        zip(file_df.IRGLO, file_df.IRDIF, theta_z)]
-dni = pd.Series(map(lambda irglo, irdif, theta_z_value: dir_nu(irglo, irdif, theta_z_value),
-                    file_df.IRGLO, file_df.IRDIF, theta_z))
-epsilon = pd.Series(map(lambda irdif, dni_value, date: epsilon(irdif, dni_value, date), file_df.IRDIF, dni,
-                        file_df.solartime))
-delta = pd.Series(map(lambda irdif, theta_z_value, gon_value: delta(irdif, theta_z_value, gon_value), file_df.IRDIF,
-                      theta_z, gon))
-c_i = file_df.solartime.apply(c_i_factor)
-# c_i = [c_i(date) for date in file_df.solartime]
 
-file_df["zenith_angle"] = np.rad2deg(np.array(theta_z))
-file_df["sunrise_time"] = [sp.sunrise_time(date, latitud) for date in file_df.solartime]
-file_df["epsilon"] = epsilon
+# zenith_angle_series_rad = [sp.theta_z(date, lat=latitud) for date in file_df.solartime]
+# gon_series = [sp.gon(date) for date in file_df.solartime]
+# dni_series = [dir_nu(irglo, irdif, theta_z_value) for irglo, irdif, theta_z_value in zip(file_df.IRGLO, file_df.IRDIF,
+#                                                                                          zenith_angle_series_rad)]
+# epsilon_series = [epsilon(irdif, dni_value, date) for irdif, dni_value, date in zip(file_df.IRDIF, dni_series,
+#                                                                                     file_df.solartime)]
+# delta_series = [delta(irdif, theta_z_value, gon_value) for irdif, theta_z_value, gon_value in
+#                 zip(file_df.IRDIF, zenith_angle_series_rad, gon_series)]
+# c_i_series = [c_i(date) for date in file_df.solartime]
+
+# dff = pd.DataFrame({"theta_z": zenith_angle_series_rad, "gon": gon_series, "dni": dni_series, "epsilon": epsilon_series,
+#                     "delta": delta_series, "c_i": c_i_series})
+
+zenith_angle_series_rad = file_df.solartime.apply(lambda date: sp.theta_z(date, lat=latitud))
+zenith_angle_series_deg = np.rad2deg(zenith_angle_series_rad)
+gon_series = file_df.solartime.apply(sp.gon)
+dni_series = pd.Series(map(lambda irglo, irdif, theta_z_value: dir_nu(irglo, irdif, theta_z_value),
+                           file_df.IRGLO, file_df.IRDIF, zenith_angle_series_rad))
+epsilon_series = pd.Series(map(lambda irdif, dni_value, date: epsilon(irdif, dni_value, date), file_df.IRDIF,
+                               dni_series, file_df.solartime))
+delta_series = pd.Series(map(lambda irdif, theta_z_value, gon_value: delta(irdif, theta_z_value, gon_value),
+                             file_df.IRDIF, zenith_angle_series_rad, gon_series))
+c_i_series = file_df.solartime.apply(c_i_original)
+sunrise_time_series = pd.Series(map(lambda date: sp.sunrise_time(date, lat=latitud), file_df.solartime))
+
+cuts = pd.Series(map(lambda aa, bb, cc, dd: cut(aa, bb, cc, dd), zenith_angle_series_deg, c_i_series, epsilon_series,
+                     delta_series))
+correction_value = [lebaron(cut) for cut in cuts]
+
+file_df["zenith_angle"] = zenith_angle_series_deg
+file_df["sunrise_time"] = sunrise_time_series
+file_df["epsilon"] = epsilon_series
 
 ghi = file_df.loc[:, ["fecha", "IRGLO", "solartime"]]
 dhi = file_df.loc[:, ["fecha", "IRDIF", "solartime"]]
 
 # Límites físicos y extremadamente raros
-factor = np.array([gon_factor(gon_value, theta_z_value) for gon_value, theta_z_value in zip(gon, theta_z)])
-ghi["upper_physical_limit"] = 1.5 * factor + 100
-ghi["upper_extreme_limit"] = 1.2 * factor + 50
-dhi["upper_physical_limit"] = 0.95 * factor + 50
-dhi["upper_extreme_limit"] = 0.75 * factor + 30
+factor_series = pd.Series(map(lambda gon_value, theta_z_value: gon_factor(gon_value, theta_z_value), gon_series,
+                              zenith_angle_series_rad))
+ghi["upper_physical_limit"] = 1.5 * factor_series + 100
+ghi["upper_extreme_limit"] = 1.2 * factor_series + 50
+dhi["upper_physical_limit"] = 0.95 * factor_series + 50
+dhi["upper_extreme_limit"] = 0.75 * factor_series + 30
 physical_lower_limit = -4
 extreme_lower_limit = -2
 ghi.index = ghi.fecha
-dhi.index = ghi.fecha
+dhi.index = dhi.fecha
 
 # Límites de comparación
 
