@@ -1,9 +1,7 @@
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
-import numpy as np
+from datetime import datetime
 import pandas as pd
-import solarpy as sp
-from lebaron import lebaron
+from utils import *
 
 '''
 Script para control de calidad (Quality Control) básico de datos solares.
@@ -12,120 +10,6 @@ Este script puede:
 '''
 # Parametro para medir el tiempo de corrida del programa
 tic = datetime.now()
-
-
-def gon_factor(gon_value, theta_z_value):
-    return gon_value * (np.cos(theta_z_value)) ** 1.2
-
-
-def dir_nu(glo_h, dif_hu, theta_z_value):
-    dir_nu_value = (glo_h - dif_hu) / np.cos(theta_z_value)
-    return dir_nu_value
-
-
-def epsilon(dif_hu, dni_value, date):
-    sunrise = sp.sunrise_time(date, latitud)
-    sunset = sp.sunset_time(date, latitud)
-    if sunrise < date < sunset:
-        epsilon_value = (dif_hu + dni_value) / dif_hu
-    else:
-        epsilon_value = np.nan
-    return epsilon_value
-
-
-def delta(dif_hu, theta_z_value, gon_value):
-    delta_value = dif_hu * sp.air_mass_kastenyoung1989(np.rad2deg(theta_z_value), altitud) / gon_value
-    return delta_value
-
-
-def c_i_original(date):
-    phi = np.deg2rad(latitud)
-    t_0 = sp.sunset_hour_angle(date, latitud)
-    italic_delta = sp.declination(date)
-    c_i_value = 1 / (1 - (2 * b) / (np.pi * r) * ((np.cos(italic_delta)) ** 3) * (
-            np.sin(phi) * np.sin(italic_delta * t_0) + np.cos(phi) * np.cos(italic_delta) * np.sin(t_0)))
-    return c_i_value
-
-
-def cut(zenith_angle_input, geometric_input, epsilon_input, delta_input):
-    if 0 <= zenith_angle_input <= 35:
-        zenith_cut = 1
-    elif 35 < zenith_angle_input <= 50:
-        zenith_cut = 2
-    elif 50 < zenith_angle_input <= 60:
-        zenith_cut = 3
-    elif 60 < zenith_angle_input <= 90:
-        zenith_cut = 4
-    else:
-        zenith_cut = np.nan
-
-    if 1 <= geometric_input <= 1.068:
-        geometric_cut = 1
-    elif 1.068 <= geometric_input <= 1.1:
-        geometric_cut = 2
-    elif 1.1 <= geometric_input <= 1.132:
-        geometric_cut = 3
-    elif 1.132 < geometric_input:
-        geometric_cut = 4
-    else:
-        geometric_cut = np.nan
-
-    if 0 <= epsilon_input <= 1.253:
-        epsilon_cut = 1
-    elif 1.253 <= epsilon_input <= 2.134:
-        epsilon_cut = 2
-    elif 2.134 <= epsilon_input <= 5.980:
-        epsilon_cut = 3
-    elif 5.980 < epsilon_input:
-        epsilon_cut = 4
-    else:
-        epsilon_cut = np.nan
-
-    if 0 <= delta_input <= 0.120:
-        delta_cut = 1
-    elif 0.120 <= delta_input <= 0.2:
-        delta_cut = 2
-    elif 0.2 <= delta_input <= 0.3:
-        delta_cut = 3
-    elif 0.3 < delta_input:
-        delta_cut = 4
-    else:
-        delta_cut = np.nan
-    return zenith_cut, geometric_cut, epsilon_cut, delta_cut
-
-
-def standard2solar_time_modified(date, lng, lng_std):
-    """
-    solarpy.standar2solar_time() modified function from solarpy
-    Solar time for a particular longitude, date and *standard* time.
-
-    Parameters
-    ----------
-    date : datetime object
-        standard (or local) time
-    lng : float
-        longitude, west position to the Prime Meridian in degrees (0º to 360º)
-    lng_std: float
-        standard longitude, west position to the Prime Meridian in degrees (0ª to 360ª)
-
-    Returns
-    -------
-    solar time : datetime object
-        solar time
-    """
-    sp.check_long(lng)
-
-    # standard time
-    t_std = date
-
-    # displacement from standard meridian for that longitude
-    delta_std_meridian = timedelta(minutes=(4 * (lng_std - lng)))
-
-    # eq. of time for that day
-    e_param = timedelta(minutes=sp.eq_time(date))
-    t_solar = t_std + delta_std_meridian + e_param
-
-    return t_solar
 
 
 # Parámetros de geolocalización
@@ -165,25 +49,26 @@ file_df.reset_index(inplace=True)
 # delta_series = [delta(irdif, theta_z_value, gon_value) for irdif, theta_z_value, gon_value in
 #                 zip(file_df.IRDIF, zenith_angle_series_rad, gon_series)]
 # c_i_series = [c_i(date) for date in file_df.solartime]
-
-# dff = pd.DataFrame({"theta_z": zenith_angle_series_rad, "gon": gon_series, "dni": dni_series, "epsilon": epsilon_series,
-#                     "delta": delta_series, "c_i": c_i_series})
+# dff = pd.DataFrame({"theta_z": zenith_angle_series_rad, "gon": gon_series, "dni": dni_series,
+#                     "epsilon": epsilon_series, "delta": delta_series, "c_i": c_i_series})
 
 zenith_angle_series_rad = file_df.solartime.apply(lambda date: sp.theta_z(date, lat=latitud))
 zenith_angle_series_deg = np.rad2deg(zenith_angle_series_rad)
 gon_series = file_df.solartime.apply(sp.gon)
 dni_series = pd.Series(map(lambda irglo, irdif, theta_z_value: dir_nu(irglo, irdif, theta_z_value),
                            file_df.IRGLO, file_df.IRDIF, zenith_angle_series_rad))
-epsilon_series = pd.Series(map(lambda irdif, dni_value, date: epsilon(irdif, dni_value, date), file_df.IRDIF,
+epsilon_series = pd.Series(map(lambda irdif, dni_value, date: epsilon(irdif, dni_value, date, latitud), file_df.IRDIF,
                                dni_series, file_df.solartime))
-delta_series = pd.Series(map(lambda irdif, theta_z_value, gon_value: delta(irdif, theta_z_value, gon_value),
+delta_series = pd.Series(map(lambda irdif, theta_z_value, gon_value: delta(irdif, theta_z_value, gon_value, altitud),
                              file_df.IRDIF, zenith_angle_series_rad, gon_series))
-c_i_series = file_df.solartime.apply(c_i_original)
+c_i_series = pd.Series(map(lambda date: c_i_original(date, latitud=latitud, shadowband_width=b, shadowband_radius=r),
+                           file_df.solartime))
 sunrise_time_series = pd.Series(map(lambda date: sp.sunrise_time(date, lat=latitud), file_df.solartime))
 
 cuts = pd.Series(map(lambda aa, bb, cc, dd: cut(aa, bb, cc, dd), zenith_angle_series_deg, c_i_series, epsilon_series,
                      delta_series))
-correction_value = [lebaron(cut) for cut in cuts]
+correction_series = pd.Series(map(lambda cut_input: lebaron(cut_input), cuts))
+IRDIF_corrected = file_df.IRDIF * correction_series
 
 file_df["zenith_angle"] = zenith_angle_series_deg
 file_df["sunrise_time"] = sunrise_time_series
