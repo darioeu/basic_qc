@@ -13,9 +13,9 @@ Este script puede:
 tic = datetime.now()
 
 # Parámetros de geolocalización
-latitud = -32.898
-longitud = -68.875
-longitud_std = -45  # Longitud estándar 0 a 360 hacia el oeste (Longitud del lugar de referencia)
+latitud = -32.898   # Latitud del lugar (de -180 a 180, oeste negativo)
+longitud = -68.875  # Longitud del lugar (de -90 a 90, sur negativo)
+longitud_std = -45  # Longitud estándar 0 a 360 hacia el oeste (Longitud del meridiano del lugar de referencia)
 altitud = 842  # msnm
 b = 7.5  # Ancho de la banda (cm)
 r = 30.8  # Radio de la banda (cm)
@@ -31,15 +31,13 @@ file_df.sort_values(by=["fecha"], inplace=True)
 file_df.reset_index(inplace=True)
 
 # Cálculo de coeficietes de corrección de difusa por medio de LeBaron
-# measurements = [SolarMeasurement(date, ghi, dif, latitud, longitud, longitud_std, altitud, b, r) for date, ghi, dif in
-#                 zip(file_df["fecha"], file_df["IRGLO"], file_df["IRDIF"])]
 measurements_series = pd.Series(map(lambda date, ghi, dif: SolarMeasurement(date, ghi, dif, lat=latitud, lng=longitud,
                                                                             lng_std=longitud_std, altitude=altitud,
                                                                             shadowband_width=b, shadowband_radius=r),
                                     file_df["fecha"], file_df["IRGLO"], file_df["IRDIF"]))
-# lebaron_list = [lebaron(measurement) for measurement in measurements]
-lebaron_series = pd.Series(map(lambda measurement: lebaron(measurement), measurements_series))
+lebaron_series = measurements_series.map(lambda measurement: measurement.dif_correction_factor)
 
+#
 # ---------- Control de calidad ----------
 
 # Chequeo de la integridad de los timestamp
