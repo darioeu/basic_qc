@@ -20,9 +20,9 @@ def standard2solar_time_modified(date, lng, lng_std):
     date : datetime object
         standard (or local) time
     lng : float
-        longitude, west position to the Prime Meridian in degrees (0º to 360º)
+        longitude
     lng_std: float
-        standard longitude, west position to the Prime Meridian in degrees (0ª to 360ª)
+        standard longitude
 
     Returns
     -------

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 import numpy as np
 import solarpy as sp
 
@@ -15,7 +15,7 @@ class SolarMeasurement:
         self.shadowband_width = shadowband_width
         self.shadowband_radius = shadowband_radius
         self.declination = sp.declination(self.datetime)
-        self.solar_datetime = standard2solar_time_modified(self.datetime, self.lng, self.lng_std)
+        self.solar_datetime = self.standard2solar_time_modified()
         self.sunrise = sp.sunrise_time(self.datetime, self.lat)
         self.sunset = sp.sunset_time(self.datetime, self.lat)
         self.sunset_hour_angle = sp.sunset_hour_angle(self.datetime, self.lat)
@@ -692,44 +692,43 @@ class SolarMeasurement:
                 elif j == 4:
                     self.dif_correction_factor = 1.142
 
+    def standard2solar_time_modified(self):
+        """
+        solarpy.standar2solar_time() modified function from solarpy
+        Solar time for a particular longitude, date and *standard* time.
 
-def set_lng(lng_input):
-    if lng_input < 0:
-        return abs(lng_input)
-    elif 0 < lng_input < 180:
-        return lng_input + 180
+        Parameters
+        ----------
+        self.datetime : datetime object
+            standard (or local) time
+        self.lng : float
+            longitude, west position to the Prime Meridian in degrees (0º to 360º)
+        self.lng_std: float
+            standard longitude, west position to the Prime Meridian in degrees (0ª to 360ª)
 
+        Returns
+        -------
+        solar time : datetime object
+            solar time
+        """
+        sp.check_long(self.lng)
 
-def standard2solar_time_modified(date, lng, lng_std):
-    """
-    solarpy.standar2solar_time() modified function from solarpy
-    Solar time for a particular longitude, date and *standard* time.
+        # standard time
+        t_std = self.datetime
+        lng_360 = self.set_lng_360(self.lng)
+        lng_std_360 = self.set_lng_360(self.lng_std)
 
-    Parameters
-    ----------
-    date : datetime object
-        standard (or local) time
-    lng : float
-        longitude, west position to the Prime Meridian in degrees (0º to 360º)
-    lng_std: float
-        standard longitude, west position to the Prime Meridian in degrees (0ª to 360ª)
+        # displacement from standard meridian for that longitude
+        delta_std_meridian = timedelta(minutes=(4 * (lng_std_360 - lng_360)))
 
-    Returns
-    -------
-    solar time : datetime object
-        solar time
-    """
-    sp.check_long(lng)
+        # eq. of time for that day
+        e_param = timedelta(minutes=sp.eq_time(self.datetime))
+        t_solar = t_std + delta_std_meridian + e_param
+        return t_solar
 
-    # standard time
-    t_std = date
-    lng_360 = set_lng(lng)
-    lng_std_360 = set_lng(lng_std)
-
-    # displacement from standard meridian for that longitude
-    delta_std_meridian = timedelta(minutes=(4 * (lng_std_360 - lng_360)))
-
-    # eq. of time for that day
-    e_param = timedelta(minutes=sp.eq_time(date))
-    t_solar = t_std + delta_std_meridian + e_param
-    return t_solar
+    @staticmethod
+    def set_lng_360(lng_input):
+        if lng_input < 0:
+            return abs(lng_input)
+        elif 0 < lng_input < 180:
+            return lng_input + 180
