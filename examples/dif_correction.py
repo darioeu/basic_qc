@@ -1,8 +1,7 @@
 import matplotlib.pyplot as plt
 from datetime import datetime
 import pandas as pd
-from qcontrol import *
-from shadowband import *
+from lebaron.shadowband import *
 
 '''
 Script para corregir los datos de radiación difusa tomados con banda de sombra. Se emplea LeBaron para la corrección.
@@ -20,7 +19,7 @@ b = 7.5  # Ancho de la banda (cm)
 r = 30.8  # Radio de la banda (cm)
 
 # Carga del archivo a analizar
-file_path = f"data/2022-minute.csv"
+file_path = f"../data/2022-minute-raw.csv"
 file_df = pd.read_csv(file_path, sep=";")
 # Parseo y reordenamiento del archivo cargado
 # file_df["fecha"] = file_df.fecha.map(lambda fecha: pd.to_datetime(fecha, format="%d/%m/%Y %H:%M"))
@@ -33,24 +32,23 @@ measurements_list = [SolarMeasurement(date, ghi, dif, lat=latitud, lng=longitud,
                                       shadowband_width=b, shadowband_radius=r) for date, ghi, dif
                      in zip(file_df["fecha"], file_df["IRGLO"], file_df["IRDIF"])]
 lebaron_list = [solar_measurement.dif_correction_factor for solar_measurement in measurements_list]
+corrected_dif = pd.Series(lebaron_list) * file_df["IRDIF"]
+corrected_dif = [value if np.isnan(corrected_dif[index]) else corrected_dif[index] for index, value in
+                 enumerate(file_df["IRDIF"])]
+
+# Plot
+# plt.plot(file_df["IRDIF"])
+# plt.plot(corrected_dif)
+# plt.show()
+
+file_df["IRDIFc"] = corrected_dif
+file_df.to_csv("2022-minute-dif_corrected.csv")
 
 # measurements_series = pd.Series(map(lambda date, ghi, dif: SolarMeasurement(date, ghi, dif, lat=latitud, lng=longitud,
 #                                                                             lng_std=longitud_std, altitude=altitud,
 #                                                                             shadowband_width=b, shadowband_radius=r),
 #                                     file_df["fecha"], file_df["IRGLO"], file_df["IRDIF"]))
 # lebaron_series = measurements_series.map(lambda measurement: measurement.dif_correction_factor)
-
-# ---------- Control de calidad ----------
-
-# Chequeo de la integridad de los timestamp
-# complete_timestamps = set(pd.date_range(start=f"2022-01-01 00:00", end=f"2022-12-31 23:59", freq="min"))
-# file_timestamps = set(file_df.fecha)
-# missing_timestamps = complete_timestamps.difference(file_timestamps)
-# print(f"Faltan {len(missing_timestamps)} de {len(complete_timestamps)} timestamps")
-# missing_df = pd.DataFrame({"fecha": list(missing_timestamps), "ILGLO": np.nan, "IRGLO": np.nan, "ILDIF": np.nan,
-#                            "IRDIF": np.nan}, index=list(missing_timestamps))
-# full_df = pd.concat([file_df, missing_df]).sort_values(by=["fecha"])
-# full_df.reset_index()
 
 # # Límites físicos y extremadamente raros
 # ghi = file_df.loc[:, ["fecha", "IRGLO", "solartime"]]
